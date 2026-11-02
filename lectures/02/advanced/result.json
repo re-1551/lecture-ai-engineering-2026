@@ -1,0 +1,124 @@
+{
+  "config": {
+    "base_model": "Qwen/Qwen3.5-0.8B",
+    "revision": "2fc06364715b967f1860aea9cf38778875588b17",
+    "seed": 42,
+    "num_train_epochs": 5,
+    "warmup_steps": 6,
+    "lr": 0.0002,
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "max_seq_len": 512,
+    "max_new_tokens": 200,
+    "gen": {
+      "do_sample": false
+    }
+  },
+  "versions": {
+    "transformers": "5.18.0",
+    "peft": "0.21.1",
+    "trl": "1.14.2",
+    "torch": "2.11.0+cu130"
+  },
+  "method": "LoRA（量子化なし）",
+  "train": {
+    "n": 116,
+    "steps": 75,
+    "seconds": 69.8,
+    "trainable_params": 6389760,
+    "total_params": 758782784,
+    "trainable_pct": 0.842,
+    "losses": [
+      {
+        "step": 5,
+        "loss": 3.705
+      },
+      {
+        "step": 10,
+        "loss": 2.8463
+      },
+      {
+        "step": 15,
+        "loss": 2.5063
+      },
+      {
+        "step": 20,
+        "loss": 1.9274
+      },
+      {
+        "step": 25,
+        "loss": 1.756
+      },
+      {
+        "step": 30,
+        "loss": 1.6331
+      },
+      {
+        "step": 35,
+        "loss": 1.0824
+      },
+      {
+        "step": 40,
+        "loss": 1.0217
+      },
+      {
+        "step": 45,
+        "loss": 0.8184
+      },
+      {
+        "step": 50,
+        "loss": 0.5534
+      },
+      {
+        "step": 55,
+        "loss": 0.5174
+      },
+      {
+        "step": 60,
+        "loss": 0.5296
+      },
+      {
+        "step": 65,
+        "loss": 0.3599
+      },
+      {
+        "step": 70,
+        "loss": 0.3559
+      },
+      {
+        "step": 75,
+        "loss": 0.4225
+      }
+    ]
+  },
+  "summaries": [
+    {
+      "label": "before",
+      "seconds": 257.8,
+      "in_rate": 0.0,
+      "paraphrase_rate": 0.143,
+      "out_rate": 0.0,
+      "all_rate": 0.048
+    },
+    {
+      "label": "after",
+      "seconds": 57.8,
+      "in_rate": 0.571,
+      "paraphrase_rate": 0.286,
+      "out_rate": 0.0,
+      "all_rate": 0.286
+    },
+    {
+      "label": "search",
+      "seconds": 56.5,
+      "in_rate": 0.857,
+      "paraphrase_rate": 0.571,
+      "out_rate": 0.286,
+      "all_rate": 0.571
+    }
+  ],
+  "regressed": [
+    "para-5"
+  ],
+  "executed_training_myself": true
+}
