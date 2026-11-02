@@ -1,0 +1,30 @@
+{
+  "questions": [
+    "LoRAとは何ですか？一文で答えてください。",
+    "LoRAの仕組みと、通常のファインチューニングとの違いを、箇条書き3点で説明してください。",
+    "生成AIを学ぶ初心者向けに、プロンプトエンジニアリングの基本と具体例を、300字以内で説明してください。",
+    "AIE2026の講座でAPIキーを安全に扱うべき理由を、起こりうる問題、予防策、漏えい時の対応に分けて説明してください。",
+    "AIエージェントを設計するときのツール、会話履歴、評価の関係を、初心者が実装を始められるように、見出し付きで詳しく解説してください。"
+  ],
+  "models": [
+    {
+      "model": "gemini-3.5-flash-lite",
+      "thinking_level": null
+    },
+    {
+      "model": "gemma-4-26b-a4b-it",
+      "thinking_level": null
+    },
+    {
+      "model": "gemini-3.5-flash-lite",
+      "thinking_level": "high"
+    },
+    {
+      "model": "gemini-3.1-flash-lite",
+      "thinking_level": null
+    },
+    {
+      "model": "gemini-3.8-flash"
+    }
+  ]
+}
