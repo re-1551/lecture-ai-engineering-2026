@@ -1,0 +1,29 @@
+{
+  "note": "第2回 宿題（発展）の評価セット。学習データ（「{term}」とは何ですか？ / {term}について簡単に説明してください。）と同じ文の質問は入れていない。in: 用語集にある語を別の聞き方で / paraphrase: 別名・説明文から聞く / out: 用語集にない語（実在の語と架空の語）",
+  "refusal_markers": ["記載がありません", "記載されていません", "載っていません", "含まれていません", "わかりません", "分かりません", "存在しません", "見つかりません", "確認できません", "知りません", "情報がありません"],
+  "questions": [
+    {"id": "in-1", "type": "in", "term_id": "lora", "q": "LoRAの仕組みを教えてください。", "must_include": ["低ランク", "行列"]},
+    {"id": "in-2", "type": "in", "term_id": "token", "q": "トークンの意味を教えてください。", "must_include": ["最小単位"]},
+    {"id": "in-3", "type": "in", "term_id": "rate-limit", "q": "レート制限って何ですか？", "must_include": ["上限", "429"]},
+    {"id": "in-4", "type": "in", "term_id": "codespaces-secret", "q": "Codespaces secretの意味を教えてください。", "must_include": ["環境変数"]},
+    {"id": "in-5", "type": "in", "term_id": "default-model", "q": "既定モデルについて教えてください。", "must_include": ["gemini-3.5-flash-lite"]},
+    {"id": "in-6", "type": "in", "term_id": "homework-levels", "q": "宿題の3レベルとは何を指しますか？", "must_include": ["基礎", "実装", "発展"]},
+    {"id": "in-7", "type": "in", "term_id": "pi", "q": "Piとはどんなツールですか？", "must_include": ["コーディングエージェント"]},
+
+    {"id": "para-1", "type": "paraphrase", "term_id": "lora", "q": "Low-Rank Adaptationとはどういう手法ですか？", "must_include": ["低ランク"], "how": "別名（英語）で聞く"},
+    {"id": "para-2", "type": "paraphrase", "term_id": "context-window", "q": "context windowって何のこと？", "must_include": ["トークン", "上限"], "how": "別名（英語・くだけた言い方）で聞く"},
+    {"id": "para-3", "type": "paraphrase", "term_id": "human-in-the-loop", "q": "HITLの意味を教えてください。", "must_include": ["人", "承認"], "how": "略語で聞く"},
+    {"id": "para-4", "type": "paraphrase", "term_id": "default-model", "q": "AIE2026の演習で標準に使うモデルは何ですか？", "must_include": ["gemini-3.5-flash-lite"], "how": "用語名を出さず、説明文から聞く"},
+    {"id": "para-5", "type": "paraphrase", "term_id": "overfitting", "q": "学習データにだけ合いすぎて、未知の入力に弱くなる状態を何と呼びますか？", "must_include": ["過学習"], "how": "定義から用語名を答えさせる（逆向き）"},
+    {"id": "para-6", "type": "paraphrase", "term_id": "quantization", "q": "モデルの重みを4ビットなどの少ないビット数で表してメモリを減らす技術の名前は？", "must_include": ["量子化"], "how": "定義から用語名を答えさせる（逆向き）"},
+    {"id": "para-7", "type": "paraphrase", "term_id": "lec-start-tag", "q": "前の回が終わっていなくても演習を始めたいとき、どのGitタグからブランチを作ればいいですか？", "must_include": ["-start"], "how": "用語名を出さず、使う場面から聞く"},
+
+    {"id": "out-1", "type": "out", "q": "RAGとは何ですか？", "kind": "実在（用語集の見出しにはない）"},
+    {"id": "out-2", "type": "out", "q": "埋め込み（エンベディング）の意味を教えてください。", "kind": "実在"},
+    {"id": "out-3", "type": "out", "q": "RLHFについて簡単に説明してください。", "kind": "実在（学習データと同じ聞き方）"},
+    {"id": "out-4", "type": "out", "q": "ベクトルデータベースとは何ですか？", "kind": "実在"},
+    {"id": "out-5", "type": "out", "q": "「フラクタル蒸留」とは何ですか？", "kind": "架空（学習データと同じ聞き方）"},
+    {"id": "out-6", "type": "out", "q": "「グラフ・リトリーバー法」について簡単に説明してください。", "kind": "架空（学習データと同じ聞き方）"},
+    {"id": "out-7", "type": "out", "q": "AIE2026の期末試験の日程を教えてください。", "kind": "講座固有だが用語集にない"}
+  ]
+}
