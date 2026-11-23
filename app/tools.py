@@ -126,3 +126,35 @@ def search_graph(query: str) -> str:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
     except APIError as e:
         return json.dumps({"error": api_error_message(e.code)}, ensure_ascii=False)
+
+
+def search_hybrid(query: str) -> str:
+    """第1〜3回の本講義資料を、意味の近さ（ベクトル）と語の一致（BM25）の両方で検索する。
+
+    2つの順位を融合した上位5ページの本文・引用情報と、前後ページの見出し（neighbors）を返す。
+    queryには調べたい内容を1つの話題に絞って指定する。用語・数値・固有名はそのまま入れる。
+    質問に「第N回」とあれば、その回のページに絞って返す。
+    """
+    import sqlite3
+    from google.genai.errors import APIError
+    from app.retrieval import search_hybrid as search
+
+    try:
+        return json.dumps(search(query), ensure_ascii=False)
+    except (ValueError, OSError, sqlite3.Error) as e:
+        return json.dumps({"error": str(e), "results": []}, ensure_ascii=False)
+    except APIError as e:
+        return json.dumps({"error": api_error_message(e.code), "results": []}, ensure_ascii=False)
+
+
+def read_page(page_id: str) -> str:
+    """ページIDを指定して、1ページの本文と引用情報を返す。
+
+    search_hybrid の neighbors にある前後ページが、説明の続きや前提になっていそうなときだけ使う。
+    """
+    from app.retrieval import read_page as read
+
+    try:
+        return json.dumps(read(page_id), ensure_ascii=False)
+    except (ValueError, OSError) as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
