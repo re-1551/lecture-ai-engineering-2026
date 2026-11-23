@@ -5,8 +5,10 @@ import json
 import math
 import re
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
+from functools import cache
 from pathlib import Path
 
 from google import genai
@@ -18,6 +20,7 @@ from app.config import (
     EMBEDDING_DIMENSIONS, EMBEDDING_MAX_TOKENS, EMBEDDING_MODEL,
     RAG_DB, RAG_DOCUMENT_IDS, RAG_SOURCE, RAG_TOP_K, RAG_TREE, get_api_key,
     RAG_GRAPH, GRAPH_START_K, GRAPH_HOPS, GRAPH_MAX_RESULTS,
+    HYBRID_CANDIDATES, HYBRID_RRF_K, HYBRID_TOP_K,
 )
 
 
@@ -124,8 +127,8 @@ def open_index(path: Path):
         db.close()
 
 
-def search(query: str) -> list[dict]:
-    """質問を埋め込み、近いページを最大RAG_TOP_K件返す。"""
+def search(query: str, top_k: int = RAG_TOP_K) -> list[dict]:
+    """質問を埋め込み、近いページを最大top_k件（既定はRAG_TOP_K件）返す。"""
     if not isinstance(query, str) or not query.strip():
         raise ValueError("検索語が空です。")
     with open_index(RAG_DB) as db:
@@ -134,8 +137,150 @@ def search(query: str) -> list[dict]:
             SELECT page_id, document_id, lecture, document_title, section, title, page, content,
                    vec_distance_cosine(embedding, ?) AS distance
             FROM chunks ORDER BY distance, page_id LIMIT ?
-        """, (sqlite_vec.serialize_float32(vector), RAG_TOP_K))
+        """, (sqlite_vec.serialize_float32(vector), top_k))
         return [dict(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# 第5回 宿題（発展）: ハイブリッド検索
+#   ベクトル検索は言い換えに強いが、「QLoRA」「日々のメモ」「4bit」のような
+#   固有の語・数値の一致を取りこぼすことがある。語の一致（BM25）を別に数え、
+#   2つの順位をRRF（Reciprocal Rank Fusion）で融合する。
+#   さらに graph.json の用語ノードの別名（例: LoRA ⇔ Low-Rank Adaptation）で
+#   語の検索だけを言い換えて広げる。埋め込み・索引は作り直さない。
+# ---------------------------------------------------------------------------
+
+BM25_K1 = 1.2
+BM25_B = 0.75
+TITLE_WEIGHT = 2  # タイトルの語は本文の2回分として数える
+
+
+def tokenize(text: str) -> list[str]:
+    """英数字は単語ごと、日本語などは文字bigram（1文字だけの塊はその文字）に分ける。"""
+    text = unicodedata.normalize("NFKC", text).casefold()
+    tokens = []
+    for run in re.findall(r"[a-z0-9]+|[^\W_a-z0-9]+", text):
+        if run.isascii() or len(run) == 1:
+            tokens.append(run)
+        else:
+            tokens.extend(run[i:i + 2] for i in range(len(run) - 1))
+    return tokens
+
+
+@cache
+def _bm25_index() -> tuple[list[dict], list[Counter], dict[str, int], float]:
+    """対象ページの語の出現回数と、語ごとの出現ページ数（df）を一度だけ数える。"""
+    pages = load_pages(RAG_SOURCE)
+    term_counts = [Counter(tokenize(page["title"]) * TITLE_WEIGHT + tokenize(page["content"]))
+                   for page in pages]
+    df = Counter(term for counts in term_counts for term in counts)
+    average_length = sum(sum(counts.values()) for counts in term_counts) / len(term_counts)
+    return pages, term_counts, dict(df), average_length
+
+
+@cache
+def _term_aliases() -> list[list[str]]:
+    """graph.json の用語ノードごとに、表記ゆれ（タイトルと別名）をまとめる。"""
+    graph = json.loads(RAG_GRAPH.read_text(encoding="utf-8"))
+    groups = []
+    for node in graph["nodes"]:
+        if node["kind"] == "term":
+            names = {unicodedata.normalize("NFKC", name).casefold()
+                     for name in [node["title"], *node.get("aliases", [])]}
+            groups.append(sorted(names, key=len, reverse=True))
+    return groups
+
+
+def expand_query(query: str) -> tuple[str, list[str]]:
+    """質問に用語の別名が含まれていれば、同じ用語の他の表記を語の検索用に足す。"""
+    normalized = unicodedata.normalize("NFKC", query).casefold()
+    added = []
+    for names in _term_aliases():
+        # 「r」のような短い別名が何にでも当たらないよう、2文字以下の英字は使わない
+        if any(name in normalized for name in names if not (name.isascii() and len(name) <= 2)):
+            added.extend(name for name in names if name not in normalized and name not in added)
+    return " ".join([query, *added]), added
+
+
+def lexical_search(query: str, top_k: int = HYBRID_CANDIDATES) -> list[dict]:
+    """BM25で語の一致を数え、スコアの高いページを最大top_k件返す。APIは使わない。"""
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("検索語が空です。")
+    pages, term_counts, df, average_length = _bm25_index()
+    expanded, _ = expand_query(query)
+    query_terms = set(tokenize(expanded))
+    n = len(pages)
+    scored = []
+    for page, counts in zip(pages, term_counts):
+        length = sum(counts.values())
+        score = 0.0
+        for term in query_terms & counts.keys():
+            idf = math.log(1 + (n - df[term] + 0.5) / (df[term] + 0.5))
+            tf = counts[term]
+            score += idf * tf * (BM25_K1 + 1) / (tf + BM25_K1 * (1 - BM25_B + BM25_B * length / average_length))
+        if score > 0:
+            scored.append((score, page))
+    scored.sort(key=lambda item: (-item[0], item[1]["page_id"]))
+    return [{**page, "bm25": round(score, 3)} for score, page in scored[:top_k]]
+
+
+def fuse_rankings(rankings: dict[str, list[dict]], top_k: int = HYBRID_TOP_K,
+                  rrf_k: int = HYBRID_RRF_K) -> list[dict]:
+    """複数の検索結果の順位をRRFで融合する。スコアの尺度が違っても順位だけで比べられる。"""
+    fused: dict[str, dict] = {}
+    for name, results in rankings.items():
+        for rank, hit in enumerate(results, 1):
+            entry = fused.setdefault(hit["page_id"], {**hit, "rrf": 0.0, "ranks": {}})
+            entry["rrf"] += 1 / (rrf_k + rank)
+            entry["ranks"][name] = rank
+            entry.update({key: value for key, value in hit.items() if key in ("distance", "bm25")})
+    ordered = sorted(fused.values(), key=lambda hit: (-hit["rrf"], hit["page_id"]))[:top_k]
+    for hit in ordered:
+        hit["rrf"] = round(hit["rrf"], 5)
+    return ordered
+
+
+def _neighbors(page_id: str) -> dict:
+    """同じ資料の前後ページのIDとタイトル（本文は付けない）。"""
+    pages = _bm25_index()[0]
+    index = next(i for i, page in enumerate(pages) if page["page_id"] == page_id)
+    result = {}
+    for key, j in (("prev", index - 1), ("next", index + 1)):
+        if 0 <= j < len(pages) and pages[j]["document_id"] == pages[index]["document_id"]:
+            result[key] = {"page_id": pages[j]["page_id"], "page": pages[j]["page"],
+                           "title": pages[j]["title"]}
+    return result
+
+
+def lecture_hints(query: str) -> set[int]:
+    """「第2回」のように回が明示されていれば、その回番号を返す（対象外の回は除く）。"""
+    targets = {int(document_id[3:5]) for document_id in RAG_DOCUMENT_IDS}
+    numbers = {int(n) for n in re.findall(r"第\s*(\d+)\s*回", unicodedata.normalize("NFKC", query))}
+    return numbers & targets
+
+
+def hybrid_rank(query: str, vector_hits: list[dict], use_lecture_filter: bool = True) -> dict:
+    """ベクトル検索の結果にBM25の結果を融合する。ベクトル側は呼び出し元が渡す（評価で再利用するため）。
+
+    質問で回が明示されていれば、両方の候補をその回のページに絞ってから融合する。
+    """
+    _, added = expand_query(query)
+    hints = lecture_hints(query) if use_lecture_filter else set()
+    rankings = {"vector": vector_hits, "lexical": lexical_search(query, top_k=HYBRID_CANDIDATES)}
+    if hints:
+        rankings = {name: [hit for hit in hits if hit["lecture"] in hints]
+                    for name, hits in rankings.items()}
+    results = fuse_rankings(rankings)
+    for hit in results:
+        hit["neighbors"] = _neighbors(hit["page_id"])
+    return {"results": results, "expanded_terms": added, "lecture_filter": sorted(hints)}
+
+
+def search_hybrid(query: str) -> dict:
+    """ベクトル検索とBM25の上位候補をRRFで融合し、前後ページの見出しを付けて返す。"""
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("検索語が空です。")
+    return hybrid_rank(query, search(query, top_k=HYBRID_CANDIDATES))
 
 
 def search_graph(query: str) -> dict:
